@@ -13,11 +13,17 @@ private:
 	std::vector<std::string> _cache;
 	std::vector<size_t> _rowMapping;
 	size_t _appendedRows = 0;
-	bool _modified = false;
-	bool _recoveryMode = false;
+	bool _rewriteNecessary = false;
+	bool _recoveryExists = false;
 
 	enum class Error {
 		FailedOpeningFile
+	};
+
+	enum class SaveMode {
+		Best,
+		Rewrite,
+		Append
 	};
 
 	[[noreturn]] void _throw(Error e, const std::string& extra = "") {
@@ -43,6 +49,39 @@ private:
 		}
 	}
 
+	bool _saveToFile(const std::filesystem::path& filePath, SaveMode saveMode) {
+		if (!std::filesystem::exists(filePath)) {
+			std::filesystem::create_directories(filePath.parent_path());
+			saveMode = SaveMode::Rewrite;
+		}
+
+		if (saveMode == SaveMode::Best) {
+			saveMode = _rewriteNecessary ? SaveMode::Rewrite : SaveMode::Append;
+		}
+
+		std::ios::openmode mode = saveMode == SaveMode::Rewrite ? std::ios::out : std::ios::app;
+		std::ofstream out{ filePath, mode };
+
+		if (!out.is_open()) {
+			return false;
+		}
+
+		if (saveMode == SaveMode::Rewrite) {
+			for (size_t rowIdx : _rowMapping) {
+				out << _cache[rowIdx] << "\n";
+			}
+		}
+		else {
+			size_t total = _rowMapping.size();
+
+			for (size_t rowIdx = total - _appendedRows; rowIdx < total; ++rowIdx) {
+				out << _cache[_rowMapping[rowIdx]] << "\n";
+			}
+		}
+
+		return true;
+	}
+
 public:
 	FileManager(std::filesystem::path filePath) :
 		_recoveryPath(filePath.parent_path() / ("RECOVERY_" + filePath.filename().string())),
@@ -50,14 +89,9 @@ public:
 	{
 		if (std::filesystem::exists(_recoveryPath)) {
 			_initCache(_recoveryPath);
-			_recoveryMode = true;
+			_recoveryExists = true;
 		}
-		else {
-			if (!std::filesystem::exists(_filePath)) {
-				std::filesystem::create_directories(_filePath.parent_path());
-				std::ofstream{ _filePath }.close();
-			}
-
+		else if (std::filesystem::exists(_filePath)) {
 			_initCache(_filePath);
 		}
 	}
@@ -77,41 +111,30 @@ public:
 	}
 
 	void save() {
-		bool successful = false;
-
-		if (_modified || _recoveryMode) {
-			std::ofstream out(_filePath);
-
-			if (out.is_open()) {
-				for (size_t row : _rowMapping) {
-					out << _cache[row] << "\n";
-				}
-
-				successful = true;
-			}
-		}
-		else if (_appendedRows > 0) {
-			std::ofstream out(_filePath, std::ios::app);
-
-			if (out.is_open()) {
-				for (size_t totalRows = _rowMapping.size(), row = totalRows - _appendedRows; row < totalRows; ++row) {
-					out << _cache[row] << "\n";
-				}
-
-				successful = true;
-			}
+		if (!_recoveryExists && !_rewriteNecessary && _appendedRows == 0) {
+			return;
 		}
 
-		if (successful) {
-			_appendedRows = 0;
-			_modified = false;
+		bool success;
 
-			if (_recoveryMode) {
-				std::error_code ec;
-				std::filesystem::remove(_recoveryPath, ec);
-
-				_recoveryMode = false;
-			}
+		if (_recoveryExists) {
+			success = _saveToFile(_filePath, SaveMode::Rewrite);
 		}
+		else {
+			success = _saveToFile(_filePath, SaveMode::Best);
+		}
+
+		if (!success && !_saveToFile(_recoveryPath, SaveMode::Best)) {
+			_throw(Error::FailedOpeningFile);
+		}
+
+		if (success && _recoveryExists) {
+			std::error_code ec;
+			std::filesystem::remove(_recoveryPath, ec);
+			_recoveryExists = false;
+		}
+
+		_rewriteNecessary = false;
+		_appendedRows = 0;
 	}
 };
