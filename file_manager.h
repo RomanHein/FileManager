@@ -85,7 +85,7 @@ private:
 	 * @param saveMode
 	 * A mode which decides in which way the file manager will try to save.
 	 * 
-	 * @returns
+	 * @return
 	 * Whether saving was successful.
 	 * 
 	 * @note
@@ -187,6 +187,35 @@ public:
 
 	/**
 	 * @brief 
+	 * Splits the text at the specified row by the specified delimiter and returns the parts.
+	 * 
+	 * @param row
+	 * The row at which the text should be split at.
+	 * 
+	 * @param delimiter 
+	 * The delimiter the text should be split after.
+	 * 
+	 * @return
+	 * Every part of the split text.
+	 */
+	std::vector<std::string> split(size_t row, char delimiter) const {
+		if (row >= _rowMapping.size()) {
+			_throw(Error::RowOutOfBounds);
+		}
+
+		std::vector<std::string> result;
+		std::stringstream ss(_cache[_rowMapping[row]]);
+		std::string part;
+
+		while (std::getline(ss, part, delimiter)) {
+			result.push_back(std::move(part));
+		}
+
+		return result;
+	}
+
+	/**
+	 * @brief 
 	 * Returns the text at the first row of the file.
 	 */
 	std::string first() const {
@@ -272,20 +301,41 @@ public:
 	 * The row which will be deleted.
 	 * 
 	 * @note
-	 * Cleans garbage after the cache exceeds 25 unused elements. Can lead to a slight delay,
-	 * depending on the size of the cache.
+	 * If user deletes row which isn't saved yet (appended row), appended rows count will be reduced instead of
+	 * forcing a full rewrite on next save.
+	 * Cleans garbage after the cache exceeds 25 unused elements. Can lead to a slight delay, depending on the
+	 * size of the cache.
 	 */
 	void erase(size_t row) {
 		if (row >= _rowMapping.size()) {
 			_throw(Error::RowOutOfBounds);
 		}
 
+		if (row >= _rowMapping.size() - _appendedRows) {
+			--_appendedRows;
+		}
+		else {
+			_rewriteNecessary = true;
+		}
+
 		_rowMapping.erase(_rowMapping.begin() + row);
-		_rewriteNecessary = true;
 
 		if (_cache.size() > _rowMapping.size() + UNUSED_ROWS_TRESHOLD) {
 			_cleanGarbage();
 		}
+	}
+
+	/**
+	 * @brief 
+	 * Deletes all rows.
+	 * 
+	 * @note
+	 * Cleans garbage to reduce memory usage.
+	 */
+	void clear() {
+		_rowMapping.clear();
+		_rewriteNecessary = true;
+		_cleanGarbage();
 	}
 
 	/**
