@@ -7,8 +7,9 @@ The class provides user-friendly methods for file manipulation and makes the dev
 - **The file's content is loaded into RAM** during instatiation for lightning fast read/write operations.
 - **Ensures that memory usage stays low by clearing garbage (unused rows) regularly.**
 - **Very performant if user only appends rows and deletes these before saving.**
+- **Uses recovery files in the case that saving fails to prevent data loss.**
 - Deleting a row moves all later rows down.
-- Methods are idiomatic and easy to understand with additional comments.
+- Methods are idiomatic and easy to understand with helpful comments.
 
 # -- Code samples --
 ```

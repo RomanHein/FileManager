@@ -7,7 +7,8 @@
 #include <sstream>
 #include <numeric>
 
-#define UNUSED_ROWS_TRESHOLD 25
+#define UNUSED_ROWS_TRESHOLD 15
+#define ESTIMATED_CHARACTERS_PER_ROW 25
 
 class FileManager {
 private:
@@ -58,12 +59,23 @@ private:
 	 * 
 	 * @param filePath
 	 * A path which points to a file the file manager should manage.
+	 * 
+	 * @note
+	 * Estimates how much space the internal vector should reserve to avoid cpu-overhead when appending.
 	 */
 	void _initCache(const std::filesystem::path& filePath) {
 		std::ifstream in(filePath);
 
 		if (!in.is_open()) {
 			_throw(Error::FailedOpeningFile, filePath.string());
+		}
+
+		uintmax_t fileSize = std::filesystem::file_size(filePath);
+
+		if (fileSize > 0) {
+			size_t estimatedRows = fileSize / ESTIMATED_CHARACTERS_PER_ROW;
+			_cache.reserve(estimatedRows);
+			_rowMapping.reserve(estimatedRows);
 		}
 
 		std::string rowContent;
@@ -92,13 +104,11 @@ private:
 	 * If the given file doesn't exist, a full rewrite will be forced. Otherwise the specified save mode unless it's
 	 * SaveMode::Best. If SaveMode::Best is specified as the save mode, the program will decide itself whether rewriting 
 	 * the whole file is really necessary.
+	 * Upon rewrite, the file manager creates a temporary .tmp file and save the changes to it before renaming it to replace
+	 * the original file.
 	 */
 	bool _saveToFile(const std::filesystem::path& filePath, SaveMode saveMode) {
 		if (!std::filesystem::exists(filePath)) {
-			if (filePath.has_parent_path()) {
-				std::filesystem::create_directories(filePath.parent_path());
-			}
-
 			saveMode = SaveMode::Rewrite;
 		}
 
@@ -106,8 +116,18 @@ private:
 			saveMode = _rewriteNecessary ? SaveMode::Rewrite : SaveMode::Append;
 		}
 
+		std::filesystem::path writePath = filePath;
+
+		if (saveMode == SaveMode::Rewrite) {
+			writePath.replace_extension(".tmp");
+
+			if (writePath.has_parent_path()) {
+				std::filesystem::create_directories(writePath.parent_path());
+			}
+		}
+
 		std::ios::openmode mode = saveMode == SaveMode::Rewrite ? std::ios::out : std::ios::app;
-		std::ofstream out{ filePath, mode };
+		std::ofstream out{ writePath, mode };
 
 		if (!out.is_open()) {
 			return false;
@@ -116,6 +136,15 @@ private:
 		if (saveMode == SaveMode::Rewrite) {
 			for (size_t rowIdx : _rowMapping) {
 				out << _cache[rowIdx] << "\n";
+			}
+
+			out.close();
+
+			std::error_code ec;
+			std::filesystem::rename(writePath, filePath, ec);
+
+			if (ec) {
+				return false;
 			}
 		}
 		else {
@@ -336,8 +365,14 @@ public:
 	 * Cleans garbage to reduce memory usage.
 	 */
 	void clear() {
+		if (_rowMapping.size() == _appendedRows) {
+			_appendedRows = 0;
+		}
+		else {
+			_rewriteNecessary = true;
+		}
+
 		_rowMapping.clear();
-		_rewriteNecessary = true;
 		_cleanGarbage();
 	}
 
