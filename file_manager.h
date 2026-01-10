@@ -5,6 +5,9 @@
 #include <fstream>
 #include <stdexcept>
 #include <sstream>
+#include <numeric>
+
+#define UNUSED_ROWS_TRESHOLD 25
 
 class FileManager {
 private:
@@ -17,7 +20,9 @@ private:
 	bool _recoveryExists = false;
 
 	enum class Error {
-		FailedOpeningFile
+		FailedOpeningFile,
+		RowOutOfBounds,
+		FailedSaving
 	};
 
 	enum class SaveMode {
@@ -26,13 +31,34 @@ private:
 		Append
 	};
 
-	[[noreturn]] void _throw(Error e, const std::string& extra = "") {
-		switch (e) {
+	/**
+	 * @brief
+	 * Throws an exception based on the specified error with optional details.
+	 *
+	 * @param error
+	 * An error linked to an exception.
+	 * 
+	 * @param extra
+	 * Optional details which will be added to the end of the exception.
+	 */
+	[[noreturn]] void _throw(Error error, const std::string& extra = "") const {
+		switch (error) {
 		case Error::FailedOpeningFile:
 			throw std::runtime_error("<FileManager> Couldn't open file " + extra);
+		case Error::RowOutOfBounds:
+			throw std::out_of_range("<FileManager> Specified row is out of bounds " + extra);
+		default:
+			throw std::runtime_error("<FileManager> Unknown exception");
 		}
 	}
 
+	/**
+	 * @brief
+	 * Initializes the file manager with the content of the specified file path.
+	 * 
+	 * @param filePath
+	 * A path which points to a file the file manager should manage.
+	 */
 	void _initCache(const std::filesystem::path& filePath) {
 		std::ifstream in(filePath);
 
@@ -49,6 +75,24 @@ private:
 		}
 	}
 
+	/**
+	 * @brief
+	 * Attempts to save the current state of the file manager to the given file path.
+	 * 
+	 * @param filePath
+	 * A path that points to file which should store the save data.
+	 * 
+	 * @param saveMode
+	 * A mode which decides in which way the file manager will try to save.
+	 * 
+	 * @returns
+	 * Whether saving was successful.
+	 * 
+	 * @note
+	 * If the given file doesn't exist, a full rewrite will be forced. Otherwise the specified save mode unless it's
+	 * SaveMode::Best. If SaveMode::Best is specified as the save mode, the program will decide itself whether rewriting 
+	 * the whole file is really necessary.
+	 */
 	bool _saveToFile(const std::filesystem::path& filePath, SaveMode saveMode) {
 		if (!std::filesystem::exists(filePath)) {
 			std::filesystem::create_directories(filePath.parent_path());
@@ -82,6 +126,32 @@ private:
 		return true;
 	}
 
+	/**
+	 * @brief 
+	 * Deletes all unused elements in the cache and rebuilds the internal storage.
+	 * 
+	 * @note
+	 * Important because if the user deletes rows often, there will be unreferenced elements left which can accumulate
+	 * and create a memory leak.
+	 */
+	void _cleanGarbage() {
+		if (_rowMapping.empty()) {
+			_cache.clear();
+			return;
+		}
+
+		std::vector<std::string> newCache;
+		newCache.reserve(_rowMapping.size());
+
+		for (size_t rowIdx : _rowMapping) {
+			newCache.push_back(std::move(_cache[rowIdx]));
+		}
+
+		_cache = std::move(newCache);
+		_rowMapping.resize(_cache.size());
+		std::iota(_rowMapping.begin(), _rowMapping.end(), 0);
+	}
+
 public:
 	FileManager(std::filesystem::path filePath) :
 		_recoveryPath(filePath.parent_path() / ("RECOVERY_" + filePath.filename().string())),
@@ -100,6 +170,67 @@ public:
 		save();
 	}
 
+	/**
+	 * @brief 
+	 * Returns the text at the specified row.
+	 * 
+	 * @param row 
+	 * The row to read.
+	 */
+	std::string read(size_t row) const {
+		if (row >= _rowMapping.size()) {
+			_throw(Error::RowOutOfBounds);
+		}
+
+		return _cache[_rowMapping[row]];
+	}
+
+	/**
+	 * @brief 
+	 * Returns the text at the first row of the file.
+	 */
+	std::string first() const {
+		if (_rowMapping.empty()) {
+			_throw(Error::RowOutOfBounds);
+		}
+
+		return _cache[_rowMapping[0]];
+	}
+
+	/**
+	 * @brief
+	 * Returns the text at the last row of the file.
+	 */
+	std::string last() const {
+		if (_rowMapping.empty()) {
+			_throw(Error::RowOutOfBounds);
+		}
+
+		return _cache[_rowMapping[_rowMapping.size() - 1]];
+	}
+
+	/**
+	 * @brief 
+	 * Returns a copy of every row.
+	 */
+	std::vector<std::string> all() const {
+		std::vector<std::string> result;
+		result.reserve(_rowMapping.size());
+
+		for (size_t rowIdx : _rowMapping) {
+			result.push_back(_cache[rowIdx]);
+		}
+
+		return result;
+	}
+
+	/**
+	 * @brief
+	 * Adds the given arguments to a new row at the end of the file.
+	 * 
+	 * @param ...args
+	 * The content to add.
+	 */
 	template<typename... Args>
 	void append(Args... args) {
 		std::stringstream ss;
@@ -110,6 +241,62 @@ public:
 		++_appendedRows;
 	}
 
+	/**
+	 * @brief 
+	 * Overwrites the text at the specified row with the specified arguments.
+	 * 
+	 * @param row 
+	 * The row at which the text will be overwritten.
+	 * 
+	 * @param ...args
+	 * The content which the row will be overwritten with.
+	 */
+	template<typename... Args>
+	void overwrite(size_t row, Args... args) {
+		if (row >= _rowMapping.size()) {
+			_throw(Error::RowOutOfBounds);
+		}
+
+		std::stringstream ss;
+		(ss << ... << args);
+
+		_cache[_rowMapping[row]] = ss.str();
+		_rewriteNecessary = true;
+	}
+
+	/**
+	 * @brief 
+	 * Deletes the specified row, shifting all later elements down.
+	 * 
+	 * @param row 
+	 * The row which will be deleted.
+	 * 
+	 * @note
+	 * Cleans garbage after the cache exceeds 25 unused elements. Can lead to a slight delay,
+	 * depending on the size of the cache.
+	 */
+	void erase(size_t row) {
+		if (row >= _rowMapping.size()) {
+			_throw(Error::RowOutOfBounds);
+		}
+
+		_rowMapping.erase(_rowMapping.begin() + row);
+		_rewriteNecessary = true;
+
+		if (_cache.size() > _rowMapping.size() + UNUSED_ROWS_TRESHOLD) {
+			_cleanGarbage();
+		}
+	}
+
+	/**
+	 * @brief 
+	 * Saves all changes to the file or the recovery file.
+	 * 
+	 * @note
+	 * If the file manager is in recovery state, he will always firstly try saving the data to the main file.
+	 * If saving doesn't succeed, the file manager will continue to use the recovery file, otherwise he will delete
+	 * the recovery file. If saving fails in both files, the manager throws an exception.
+	 */
 	void save() {
 		if (!_recoveryExists && !_rewriteNecessary && _appendedRows == 0) {
 			return;
@@ -125,7 +312,7 @@ public:
 		}
 
 		if (!success && !_saveToFile(_recoveryPath, SaveMode::Best)) {
-			_throw(Error::FailedOpeningFile);
+			_throw(Error::FailedSaving);
 		}
 
 		if (success && _recoveryExists) {
@@ -136,5 +323,21 @@ public:
 
 		_rewriteNecessary = false;
 		_appendedRows = 0;
+	}
+
+	/**
+	 * @brief
+	 * Returns whether there are no present rows.
+	 */
+	bool empty() const noexcept {
+		return _rowMapping.empty();
+	}
+
+	/**
+	 * @brief
+	 * Returns the number of present rows.
+	 */
+	size_t size() const noexcept {
+		return _rowMapping.size();
 	}
 };
