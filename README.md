@@ -35,7 +35,7 @@ int main() {
 ```
 
 ### Simple task tracker. Add tasks, mark them as completed. Oldest task will always have the highest priority.
-´´´
+```
 #include <iostream>
 #include <string>
 
