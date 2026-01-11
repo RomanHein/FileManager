@@ -65,7 +65,7 @@ private:
 	 * can't be instantiated.
 	 */
 	void _lockFile() {
-		if (_lockedFiles.contains(std::filesystem::absolute(_filePath))) {
+		if (_lockedFiles.find(std::filesystem::absolute(_filePath)) != _lockedFiles.end()) {
 			_throw(Error::FileAlreadyManaged);
 		}
 
@@ -124,7 +124,7 @@ private:
 	 * @param saveMode
 	 * A mode which decides in which way the file manager will try to save.
 	 * 
-	 * @return
+	 * @returns
 	 * Whether saving was successful.
 	 * 
 	 * @note
@@ -257,7 +257,7 @@ public:
 	 * @param delimiter 
 	 * The delimiter the text should be split after.
 	 * 
-	 * @return
+	 * @returns
 	 * Every part of the split text.
 	 */
 	std::vector<std::string> split(size_t row, char delimiter) const {
