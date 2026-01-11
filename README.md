@@ -32,3 +32,20 @@ fm.append("Hello world", "!");
 // Optional: save changes. Happens automatically when the destructor is called.
 fm.save();
 ```
+
+# -- Class Methods --
+| Method  | Explanation |
+|---------|-------------|
+| FileManager(filePath) | Creates a new FileManager instance that manages the specified file. |
+| read(row) | Returns the text at the specified row. |
+| split(row, delimiter) | Returns the text parts of split text at the specified row by the specified delimiter. |
+| first() | Returns a copy of the text at the first row. |
+| last() | Returns a copy of the text at the last row. |
+| all() | Returns a copy of the text at every row. |
+| append(args) | Adds the given arguments to a new row at the end of the file. |
+| overwrite(row, args) | Overwrites the specified row with the specified arguments |
+| erase(row) | Deletes the specified row, shifting all later elements down. |
+| clear() | Deletes all rows. |
+| save() | Saves all changes back to the file. |
+| empty() | Returns true if there are no present rows. |
+| size() | Returns the number of present rows. |
