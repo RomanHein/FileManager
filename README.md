@@ -88,7 +88,7 @@ int main() {
 		}
 	}
 }
-´´´
+```
 
 # -- Class Methods --
 | Method  | Explanation |
