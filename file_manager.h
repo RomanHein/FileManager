@@ -6,9 +6,12 @@
 #include <stdexcept>
 #include <sstream>
 #include <numeric>
+#include <set>
 
 #define UNUSED_ROWS_TRESHOLD 15
 #define ESTIMATED_CHARACTERS_PER_ROW 25
+
+static std::set<std::filesystem::path> _lockedFiles;
 
 class FileManager {
 private:
@@ -23,7 +26,8 @@ private:
 	enum class Error {
 		FailedOpeningFile,
 		RowOutOfBounds,
-		FailedSaving
+		FailedSaving,
+		FileAlreadyManaged
 	};
 
 	enum class SaveMode {
@@ -48,9 +52,32 @@ private:
 			throw std::runtime_error("<FileManager> Couldn't open file " + extra);
 		case Error::RowOutOfBounds:
 			throw std::out_of_range("<FileManager> Specified row is out of bounds " + extra);
+		case Error::FileAlreadyManaged:
+			throw std::runtime_error("<FileManager> Can't create a file manager instance for a while that is already being managed " + extra);
 		default:
 			throw std::runtime_error("<FileManager> Unknown exception");
 		}
+	}
+
+	/**
+	 * @brief 
+	 * Locks the file that is managed by the file manager so that another file manager with the same file path
+	 * can't be instantiated.
+	 */
+	void _lockFile() {
+		if (_lockedFiles.contains(std::filesystem::absolute(_filePath))) {
+			_throw(Error::FileAlreadyManaged);
+		}
+
+		_lockedFiles.insert(std::filesystem::absolute(_filePath));
+	}
+
+	/**
+	 * @brief 
+	 * Unlocks a file, allowing another file manager to take control of the file.
+	 */
+	void _unlockFile() {
+		_lockedFiles.erase(std::filesystem::absolute(_filePath));
 	}
 
 	/**
@@ -189,6 +216,8 @@ public:
 		_recoveryPath(filePath.parent_path() / ("RECOVERY_" + filePath.filename().string())),
 		_filePath(std::move(filePath))
 	{
+		_lockFile();
+
 		if (std::filesystem::exists(_recoveryPath)) {
 			_initCache(_recoveryPath);
 			_recoveryExists = true;
@@ -200,6 +229,7 @@ public:
 
 	~FileManager() {
 		save();
+		_unlockFile();
 	}
 
 	/**
