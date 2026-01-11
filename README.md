@@ -18,20 +18,77 @@ Some areas where it can be useful area:
 - Standalone, **independent library** which can just be dropped into the project folder.
 
 # -- Code samples --
+### Creating a .txt file and adding 'Hello world!'
 ```
-// The manager is a header only library.
 #include "file_manager.h"
 
-// Creates a test.txt file at the root of the C drive, depending on the provided path.
-// If the given path/file doesn't exist, the manager creates the according directories/file.
-FileManager fm(R"C:/test.txt");
+int main() {
+    // Creates a test.txt file at the root of the C drive, depending on the provided path.
+    // If the given path/file doesn't exist, the manager creates the according directories/file.
+    FileManager fm(R"C:/test.txt");
 
-// Appends "Hello world!" at the end of the txt file.
-fm.append("Hello world", "!");
+    // Appends "Hello world!" at the end of the .txt file.
+    fm.append("Hello world", "!");
 
-// Optional: save changes. Happens automatically when the destructor is called.
-fm.save();
+    // Saves automatically on deconstruction!
+}
 ```
+
+### Simple task tracker. Add tasks, mark them as completed. Oldest task will always have the highest priority.
+´´´
+#include <iostream>
+#include <string>
+
+#include "file_manager.h"
+
+int main() {
+    FileManager fm(R"(C:\Users\Roman Hein\Desktop\todo.txt)");
+
+	int input;
+	std::string task;
+
+	while (true) {
+		if (!fm.empty()) {
+			std::cout << "Next task: " << fm.first() << "\n";
+		}
+		else {
+			std::cout << "No tasks present.\n";
+		}
+
+		std::cout << "1) Add new task\n"
+			  	  << "2) Mark current task as completed\n"
+			  	  << "3) Exit\n"
+			      << ": ";
+
+		std::cin >> input;
+		std::cin.ignore();
+
+		switch (input) {
+		case 1:
+			std::cout << "Type a task: ";
+			std::getline(std::cin, task);
+
+			fm.append(task);
+			break;
+
+		case 2:
+			if (fm.empty()) {
+				std::cout << "No tasks present.\n";
+				break;
+			}
+
+			fm.erase(0);
+			break;
+
+		case 3:
+			return 0;
+
+		default:
+			std::cout << "Invalid input.\n";
+		}
+	}
+}
+´´´
 
 # -- Class Methods --
 | Method  | Explanation |
