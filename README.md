@@ -3,12 +3,18 @@
 The file manager is a wrapper class for **C++17**'s filestreams. It takes control of a specified file and **provides idiomatic methods to manipulate the given file**.
 As a **standalone library**, it **handles all verbose code parts of file streams** under the hood and offers a balance between efficiency, ease of use, reliability and features.
 
-# -- Features --
+### What are the features?
 - File content is **loaded into RAM** for performance.
 - Creates **recovery files in case of a failed save**.
 - **Keeps memory low** by cleaning garbage regularly.
 - **Saves efficiently** by evaluating whether a full rewrite is necessary.
 - Standalone, **independent library** which can just be dropped into the project folder.
+
+# -- Installation --
+1. Download the latest release under 'Releases'.
+2. Extract the 'file_manager.h' file from the zip into your project folder.
+3. Make sure to use C++17 or later.
+4. Include the file manager. e.g. `#include "file_manager.h"`.
 
 # -- Code samples --
 ### Creating a .txt file and adding 'Hello world!'
