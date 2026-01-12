@@ -9,12 +9,12 @@
 #include <set>
 
 #define UNUSED_ROWS_TRESHOLD 15
-#define ESTIMATED_CHARACTERS_PER_ROW 25
-
-static std::set<std::filesystem::path> _lockedFiles;
+#define ESTIMATED_CHARACTERS_PER_ROW 32
 
 class FileManager {
 private:
+	static inline std::set<std::filesystem::path> _lockedFiles;
+
 	const std::filesystem::path _recoveryPath;
 	const std::filesystem::path _filePath;
 	std::vector<std::string> _cache;
@@ -129,7 +129,7 @@ private:
 	 * 
 	 * @note
 	 * If the given file doesn't exist, a full rewrite will be forced. Otherwise the specified save mode unless it's
-	 * SaveMode::Best. If SaveMode::Best is specified as the save mode, the program will decide itself whether rewriting 
+	 * SaveMode::Best. If SaveMode::Best is specified as the save mode, the program will decide itself whether rewriting
 	 * the whole file is really necessary.
 	 * Upon rewrite, the file manager creates a temporary .tmp file and save the changes to it before renaming it to replace
 	 * the original file.
