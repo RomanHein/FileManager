@@ -1,20 +1,13 @@
 # -- Introduction --
 ### What does the FileManager do? 
-The manager is essentially just a class which **handles all the verbose code parts of working with files in C++17**.
-The class provides user-friendly methods for file manipulation and makes the developer's work easier by freeing them of the concerns that come with file management (saving changes, reading specific rows, bound checking, etc.).
-
-### Where does it shine?
-The file manager is lightweight and easy to use, it lies somewhere in between of raw file I/O and a professional database.
-Some areas where it can be useful area:
-- Simple list to keep track of scores.
-- Vocabulary trainer.
+The file manager is a wrapper class for **C++17**'s filestreams. It takes control of a specified file and **provides idiomatic methods to manipulate the given file**.
+As a **standalone library**, it **handles all verbose code parts of file streams** under the hood and offers a balance between efficiency, ease of use, reliability and features.
 
 # -- Features --
 - File content is **loaded into RAM** for performance.
 - Creates **recovery files in case of a failed save**.
-- **Keeps memory low** by cleaning garbage when necessary.
+- **Keeps memory low** by cleaning garbage regularly.
 - **Saves efficiently** by evaluating whether a full rewrite is necessary.
-- **Easy to use** due to idiomatic methods with additional comments.
 - Standalone, **independent library** which can just be dropped into the project folder.
 
 # -- Code samples --
@@ -34,7 +27,7 @@ int main() {
 }
 ```
 
-### Simple task tracker. Add tasks, mark them as completed. Oldest task will always have the highest priority.
+### Basic task schedeuler
 ```
 #include <iostream>
 #include <string>
